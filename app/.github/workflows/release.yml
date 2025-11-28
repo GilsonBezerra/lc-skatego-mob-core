@@ -1,68 +1,86 @@
-#name: SDK Release
-#
-#on:
-#  pull_request:
-#    branches: [ main ]
-#    types: [ closed ]
-#
-#permissions:
-#  contents: write
-#  packages: write
-#
-#jobs:
-#  release:
-#    if: github.event.pull_request.merged == true
-#    runs-on: ubuntu-latest
-#
-#    steps:
-#      - name: Checkout
-#        uses: actions/checkout@v4
-#        with:
-#          ref: ${{ github.event.pull_request.merge_commit_sha }}
-#
-#      - name: Permissão gradlew
-#        run: chmod +x gradlew
-#
-#      - name: Setup JDK 17
-#        uses: actions/setup-java@v4
-#        with:
-#          java-version: "17"
-#          distribution: "temurin"
-#
-#      - name: Ler versão
-#        id: version
-#        run: |
-#          VERSION=$(grep VERSION_NAME version.properties | cut -d'=' -f2)
-#          echo "versao=$VERSION" >> $GITHUB_OUTPUT
-#          echo "Versão detectada: $VERSION"
-#
-#      - name: Criar tag
-#        run: |
-#          TAG="v${{ steps.version.outputs.versao }}"
-#          if git rev-parse "$TAG" >/dev/null 2>&1; then
-#            echo "Tag $TAG já existe — pulando criação."
-#            exit 0
-#          fi
-#          git config user.name "github-actions"
-#          git config user.email "actions@github.com"
-#          git tag -a "$TAG" -m "Release $TAG"
-#          git push origin "$TAG"
-#
-#      - name: Criar Release
-#        uses: softprops/action-gh-release@v2
-#        with:
-#          tag_name: v${{ steps.version.outputs.versao }}
-#          name: Release v${{ steps.version.outputs.versao }}
-#          body: |
-#            Nova versão gerada automaticamente.
-#            PR: #${{ github.event.pull_request.number }}
-#            Versão: ${{ steps.version.outputs.versao }}
-#        env:
-#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-#           AUTH_TOKEN: ${{ secrets.AUTH_TOKEN }}
-#
-#      - name: Publicar no GitHub Packages
-#        run: ./gradlew publish
-#        env:
-#          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-#          GITHUB_ACTOR: ${{ github.actor }}
+name: SDK Release
+
+on:
+  pull_request:
+    branches: [ main ]
+    types: [ closed ]
+
+permissions:
+  contents: write
+  packages: write
+
+jobs:
+  release:
+    if: github.event.pull_request.merged == true
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.pull_request.merge_commit_sha }}
+
+      - name: Permissão gradlew
+        run: chmod +x gradlew
+
+      - name: Setup JDK 17
+        uses: actions/setup-java@v4
+        with:
+          java-version: "17"
+          distribution: "temurin"
+
+      # ============================
+      # Lê a versão da lib
+      # ============================
+      - name: Ler versão
+        id: version
+        run: |
+          VERSION=$(grep VERSION_NAME version.properties | cut -d'=' -f2)
+          echo "versao=$VERSION" >> $GITHUB_OUTPUT
+          echo "Versão detectada: $VERSION"
+
+      # ============================
+      # Cria a TAG no repositório
+      # ============================
+      - name: Criar tag
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          TAG="v${{ steps.version.outputs.versao }}"
+
+          # Evita crash se a tag já existir
+          if git rev-parse "$TAG" >/dev/null 2>&1; then
+            echo "Tag $TAG já existe — pulando criação."
+            exit 0
+          fi
+
+          git config user.name "${{ github.actor }}"
+          git config user.email "${{ github.actor }}@users.noreply.github.com"
+
+          git tag -a "$TAG" -m "Release $TAG"
+          git push origin "$TAG"
+
+      # ============================
+      # Cria Release no GitHub
+      # ============================
+      - name: Criar Release
+        uses: softprops/action-gh-release@v2
+        with:
+          tag_name: v${{ steps.version.outputs.versao }}
+          name: Release v${{ steps.version.outputs.versao }}
+          body: |
+            Nova versão gerada automaticamente.
+            PR: #${{ github.event.pull_request.number }}
+            Versão: ${{ steps.version.outputs.versao }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      # ============================
+      # Publicar para JitPack / Packages
+      # Gradle recebe o AUTH_TOKEN via -PauthToken
+      # ============================
+      - name: Publicar no GitHub Packages
+        run: ./gradlew publish -PauthToken=${{ secrets.AUTH_TOKEN }}
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GITHUB_ACTOR: ${{ github.actor }}
