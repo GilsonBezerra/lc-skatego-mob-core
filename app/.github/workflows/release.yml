@@ -59,6 +59,7 @@
 #            Versão: ${{ steps.version.outputs.versao }}
 #        env:
 #          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+#           AUTH_TOKEN: ${{ secrets.AUTH_TOKEN }}
 #
 #      - name: Publicar no GitHub Packages
 #        run: ./gradlew publish
